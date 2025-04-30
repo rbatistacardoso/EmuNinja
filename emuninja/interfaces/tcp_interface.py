@@ -22,7 +22,9 @@ class TcpServerInterface(CommunicationInterface):
         self._writers: Set[asyncio.StreamWriter] = (
             set()
         )  # Keep track of connected clients
-        self._listen_task: Optional[asyncio.Task] = None  # Task for the server itself
+        self._listen_task: Optional[asyncio.Task[None]] = (
+            None  # Task for the server itself
+        )
 
     async def _handle_client(
         self,
@@ -37,18 +39,17 @@ class TcpServerInterface(CommunicationInterface):
 
         while True:
             try:
-                # data = await reader.read(1024) # Example read size
-                # if not data:
-                #     print(f"TCP client disconnected: {peername}")
-                #     break
-                #
-                # print(f"Received {len(data)} bytes from {peername}")
-                # response = await data_handler(data)
-                # if response:
-                #     print(f"Sending {len(response)} bytes to {peername}")
-                #     writer.write(response)
-                #     await writer.drain()
-                await asyncio.sleep(1)  # Placeholder loop
+                data = await reader.read(1024)
+                if not data:
+                    print(f"TCP client disconnected: {peername}")
+                    break
+
+                print(f"Received {len(data)} bytes from {peername}")
+                response = await data_handler(data)
+                if response:
+                    print(f"Sending {len(response)} bytes to {peername}")
+                    writer.write(response)
+                    await writer.drain()
 
             except asyncio.CancelledError:
                 print(f"Client handler cancelled for {peername}")
@@ -67,7 +68,8 @@ class TcpServerInterface(CommunicationInterface):
                     self._writers.remove(writer)
                 try:
                     writer.close()
-                    # await writer.wait_closed() # Requires Python 3.7+
+                    if hasattr(writer, "wait_closed"):
+                        await writer.wait_closed()
                 except Exception as close_e:
                     print(
                         f"Error closing writer for {peername}: {close_e}"
@@ -79,17 +81,14 @@ class TcpServerInterface(CommunicationInterface):
         """Starts the TCP server and listens for connections."""
         print(f"Starting TCP server on {self.host}:{self.port}...")
         try:
-            # self._server = await asyncio.start_server(
-            #     lambda r, w: self._handle_client(r, w, data_handler),
-            #     self.host,
-            #     self.port
-            # )
-            # # Keep the server running (alternative to storing the task)
-            # # self._listen_task = asyncio.create_task(self._server.serve_forever())
-            # addr = self._server.sockets[0].getsockname()
-            # print(f'TCP Server listening on {addr}')
-            await asyncio.sleep(0)  # Placeholder
-            print(f"TCP server started successfully on {self.host}:{self.port}.")
+            self._server = await asyncio.start_server(
+                lambda r, w: self._handle_client(r, w, data_handler),
+                self.host,
+                self.port,
+            )
+            self._listen_task = asyncio.create_task(self._server.serve_forever())
+            addr = self._server.sockets[0].getsockname()
+            print(f"TCP Server listening on {addr}")
 
         except Exception as e:
             print(
@@ -104,9 +103,8 @@ class TcpServerInterface(CommunicationInterface):
         # Close the server first to prevent new connections
         if self._server:
             try:
-                # self._server.close()
-                # await self._server.wait_closed()
-                pass  # Placeholder
+                self._server.close()
+                await self._server.wait_closed()
             except Exception as e:
                 print(f"Error closing TCP server: {e}")  # Replace with logging
             self._server = None
@@ -119,7 +117,8 @@ class TcpServerInterface(CommunicationInterface):
             ):  # Check if still present (might be removed in _handle_client finally block)
                 try:
                     writer.close()
-                    # await writer.wait_closed() # Requires Python 3.7+
+                    if hasattr(writer, "wait_closed"):
+                        await writer.wait_closed()
                 except Exception as e:
                     print(
                         f"Error closing client writer during stop: {e}"
@@ -159,8 +158,8 @@ class TcpServerInterface(CommunicationInterface):
             # Check if writer is still valid and in the set before sending
             if writer in self._writers and not writer.is_closing():
                 try:
-                    # writer.write(data)
-                    # await writer.drain()
+                    writer.write(data)
+                    await writer.drain()
                     sent_count += 1
                 except Exception as e:
                     failed_count += 1

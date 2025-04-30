@@ -2,26 +2,7 @@ import asyncio
 import argparse
 import signal
 import sys
-
-# Need to import the manager - adjust path if needed when structure is final
-# from emuninja.core.emulator import EmulatorManager
-
-
-# Placeholder class until imports work
-class EmulatorManager:
-    def __init__(self, config_path: str):
-        self.config_path = config_path
-        print(f"Placeholder EmulatorManager initialized with config: {config_path}")
-
-    async def start_all(self):
-        print("Placeholder EmulatorManager: Starting all...")
-        await asyncio.sleep(1)
-        print("Placeholder EmulatorManager: Started.")
-
-    async def stop_all(self):
-        print("Placeholder EmulatorManager: Stopping all...")
-        await asyncio.sleep(0.1)
-        print("Placeholder EmulatorManager: Stopped.")
+from emuninja.core.emulator import EmulatorManager
 
 
 async def main():
