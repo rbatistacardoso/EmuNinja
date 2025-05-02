@@ -15,29 +15,24 @@ class RuleEngine:
 
         Args:
             rules_config: A list of dictionaries, each defining a request-response rule.
-                          Example rule: {'request': '*IDN?', 'response': 'Device XYZ', 'match_type': 'exact', 'delay': 0.1}
+                          Example rule: {'receive': {'type': 'exact', 'value': '*IDN?'},
+                                       'respond': {'type': 'exact', 'value': 'Device XYZ'}}
             registers_config: Optional configuration for register-based protocols like Modbus.
                               Example: {'holding': {40001: 123}, 'input': {30001: 1}}
         """
         self.registers = registers_config if registers_config else {}
-
-        # Pre-process rules: compile regex patterns for better performance
         self._compiled_rules: List[Dict[str, Any]] = []
+
         for rule in rules_config:
             compiled_rule = rule.copy()
-            if rule.get("match_type") == "regex":
+            if rule.get("receive", {}).get("type") == "regex":
                 try:
-                    # Ensure request pattern is treated as string for regex
-                    pattern_str = str(rule.get("request", ""))
+                    pattern_str = str(rule["receive"]["value"])
                     compiled_rule["_compiled_regex"] = re.compile(pattern_str)
                 except (re.error, TypeError) as e:
-                    print(
-                        f"Warning: Invalid regex '{rule.get('request')}': {e}"
-                    )  # Replace with logging
-                    compiled_rule["_compiled_regex"] = None  # Mark as invalid
+                    print(f"Warning: Invalid regex '{rule['receive']['value']}': {e}")
+                    compiled_rule["_compiled_regex"] = None
             self._compiled_rules.append(compiled_rule)
-
-        print(f"RuleEngine initialized with {len(self._compiled_rules)} rules")
 
     def find_response(self, parsed_request: Any) -> Optional[Tuple[Any, float]]:
         """
@@ -51,40 +46,61 @@ class RuleEngine:
             Tuple of (response_value, delay_seconds) if match found, else None.
         """
         for rule in self._compiled_rules:
-            match_type = rule.get("match_type", "exact")
-            request_value = rule.get("request")
+            receive_rule = rule.get("receive", {})
+            if not receive_rule:
+                continue
 
+            match_type = receive_rule.get("type")
+            request_value = receive_rule.get("value")
+            response_rule = rule.get("respond", {})
+            response_value = response_rule.get("value")
+            delay = float(rule.get("delay", 0.0))
+
+            match_found = False
             try:
                 if match_type == "exact":
                     if request_value == parsed_request:
-                        return rule.get("response"), float(rule.get("delay", 0.0))
+                        match_found = True
 
                 elif match_type == "prefix":
                     if isinstance(parsed_request, (str, bytes)) and isinstance(
                         request_value, (str, bytes)
                     ):
-                        if parsed_request.startswith(request_value):  # type: ignore
-                            return rule.get("response"), float(rule.get("delay", 0.0))
+                        if isinstance(parsed_request, str) and isinstance(
+                            request_value, str
+                        ):
+                            if parsed_request.startswith(request_value):
+                                match_found = True
+                        elif isinstance(parsed_request, bytes) and isinstance(
+                            request_value, bytes
+                        ):
+                            if parsed_request.startswith(request_value):
+                                match_found = True
 
-                elif match_type == "regex" and rule.get("_compiled_regex"):
-                    # Handle both string and bytes matching
-                    if isinstance(parsed_request, bytes):
-                        try:
-                            request_str = parsed_request.decode(
-                                "utf-8", errors="ignore"
-                            )
-                            if rule["_compiled_regex"].match(request_str):
-                                return rule.get("response"), float(
-                                    rule.get("delay", 0.0)
+                elif match_type == "regex":
+                    compiled_regex = rule.get("_compiled_regex")
+                    if compiled_regex:
+                        request_str = None
+                        if isinstance(parsed_request, bytes):
+                            try:
+                                request_str = parsed_request.decode(
+                                    "utf-8", errors="ignore"
                                 )
-                        except UnicodeError:
-                            continue
-                    elif isinstance(parsed_request, str):
-                        if rule["_compiled_regex"].match(parsed_request):
-                            return rule.get("response"), float(rule.get("delay", 0.0))
+                            except UnicodeError:
+                                pass
+                        elif isinstance(parsed_request, str):
+                            request_str = parsed_request
+
+                        if request_str is not None and compiled_regex.match(
+                            request_str
+                        ):
+                            match_found = True
+
+                if match_found:
+                    return response_value, delay
 
             except Exception as e:
-                print(f"Error evaluating rule {rule}: {e}")  # Replace with logging
+                print(f"Error evaluating rule {rule}: {e}")
 
         return None
 
@@ -103,15 +119,11 @@ class RuleEngine:
             List of integer register values if successful, None if error
         """
         if register_type not in self.registers:
-            print(
-                f"Warning: Invalid register type '{register_type}'"
-            )  # Replace with logging
+            print(f"Warning: Invalid register type '{register_type}'")
             return None
 
         if address < 0 or count <= 0:
-            print(
-                f"Warning: Invalid address/count: {address}/{count}"
-            )  # Replace with logging
+            print(f"Warning: Invalid address/count: {address}/{count}")
             return None
 
         registers = self.registers[register_type]
@@ -121,11 +133,8 @@ class RuleEngine:
             if current_addr in registers:
                 values.append(registers[current_addr])
             else:
-                # Fill with zero for missing registers
                 values.append(0)
-                print(
-                    f"Warning: Unknown register {register_type}:{current_addr}"
-                )  # Replace with logging
+                print(f"Warning: Unknown register {register_type}:{current_addr}")
 
         return values
 
@@ -142,13 +151,11 @@ class RuleEngine:
             True if successful, False if error
         """
         if register_type not in self.registers:
-            print(
-                f"Warning: Invalid register type '{register_type}'"
-            )  # Replace with logging
+            print(f"Warning: Invalid register type '{register_type}'")
             return False
 
         if address < 0:
-            print(f"Warning: Invalid address: {address}")  # Replace with logging
+            print(f"Warning: Invalid address: {address}")
             return False
 
         self.registers[register_type][address] = value

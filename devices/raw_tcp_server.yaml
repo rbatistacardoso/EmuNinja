@@ -1,0 +1,16 @@
+name: Raw TCP Server Extra
+enabled: true
+interface:
+  type: tcp
+  host: 127.0.0.1
+  port: 5000
+protocol:
+  type: raw
+  encoding: utf-8
+  rules:
+    - receive:
+        type: exact
+        value: PING
+      respond:
+        type: exact
+        value: PONG

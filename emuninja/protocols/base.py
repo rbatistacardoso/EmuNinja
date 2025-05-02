@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Dict, Any, Optional
 from emuninja.core.rules import RuleEngine
 
@@ -20,7 +20,6 @@ class ProtocolHandler(ABC):
         # Add logging setup here later
         print(f"Initializing {self.__class__.__name__} with config: {config}")
 
-    @abstractmethod
     async def handle_data(self, received_data: bytes) -> Optional[bytes]:
         """
         Processes received data according to the specific protocol rules.
@@ -37,4 +36,5 @@ class ProtocolHandler(ABC):
             The raw bytes of the response to be sent back, or None if no
             response should be sent for this data.
         """
-        pass
+        # Default implementation returns None
+        return None

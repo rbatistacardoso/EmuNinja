@@ -1,55 +1,72 @@
 import asyncio
-import argparse
 import signal
 import sys
+import os
+import logging
+
 from emuninja.core.emulator import EmulatorManager
+
+# Define the devices directory path relative to the project root
+DEVICES_DIR = "devices"
 
 
 async def main():
-    parser = argparse.ArgumentParser(
-        description="EmuNinja - Industrial Device Emulator"
-    )
-    parser.add_argument(
-        "config_file",
-        type=str,
-        help="Path to the YAML configuration file defining devices and rules.",
-        # Default for easier testing?
-        nargs="?",
-        default="config.yaml",
-    )
-    args = parser.parse_args()
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    devices_path = os.path.join(project_root, DEVICES_DIR)
+    devices_path = os.path.abspath(devices_path)
 
-    print(f"Using configuration file: {args.config_file}")
-    manager = EmulatorManager(config_path=args.config_file)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[logging.FileHandler("emulator.log"), logging.StreamHandler()],
+    )
+    logging.info(f"Attempting to use devices directory: {devices_path}")
+    manager = EmulatorManager(devices_dir=devices_path)
 
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
 
     def signal_handler():
-        print("Stop signal received, shutting down...")
+        print("\nStop signal received, shutting down...")
         stop_event.set()
 
     # Register signal handlers for graceful shutdown
     if sys.platform != "win32":
-        loop.add_signal_handler(signal.SIGINT, signal_handler)
-        loop.add_signal_handler(signal.SIGTERM, signal_handler)
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            try:
+                loop.add_signal_handler(sig, signal_handler)
+            except ValueError:
+                print(f"Warning: Could not add signal handler for {sig}")
     else:
-        # Windows specific signal handling (less reliable for Ctrl+C in console)
         signal.signal(signal.SIGINT, lambda s, f: signal_handler())
-        signal.signal(signal.SIGTERM, lambda s, f: signal_handler())
+        try:
+            signal.signal(signal.SIGTERM, lambda s, f: signal_handler())
+        except AttributeError:
+            pass
 
     try:
         await manager.start_all()
-        print("Emulator started. Press Ctrl+C to stop.")
-        await stop_event.wait()  # Keep running until stop signal
+        if manager.get_active_device_count() > 0:
+            print(
+                f"Emulator started using devices from '{devices_path}'. Press Ctrl+C to stop."
+            )
+            await stop_event.wait()
+        else:
+            print("No devices were configured or started successfully. Exiting.")
+
     except FileNotFoundError:
-        print(f"Error: Configuration file '{args.config_file}' not found.")
-        # No need to stop manager if start failed due to missing config
-        return  # Exit early
+        print(f"Error: Devices directory '{devices_path}' not found.")
+        return
     except Exception as e:
-        print(f"An unexpected error occurred during startup: {e}")
-        # Attempt cleanup even if startup failed partially
+        print(f"An unexpected error occurred: {e}")
     finally:
+        if sys.platform != "win32":
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                try:
+                    loop.remove_signal_handler(sig)
+                except ValueError:
+                    pass
+
         print("Shutting down emulator manager...")
         await manager.stop_all()
         print("Emulator finished.")
@@ -59,4 +76,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("KeyboardInterrupt caught in __main__, exiting.")
+        print("\nKeyboardInterrupt caught directly in __main__, forcing exit.")

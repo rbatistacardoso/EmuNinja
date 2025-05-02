@@ -1,0 +1,26 @@
+name: Serial Raw Device
+enabled: false
+interface:
+  type: serial
+  port: COM3
+  baudrate: 9600
+  bytesize: 8
+  parity: N
+  stopbits: 1
+protocol:
+  type: raw
+  encoding: ascii
+  terminator: "\r\n"
+  rules:
+    - receive:
+        type: exact
+        value: GET_STATUS
+      respond:
+        type: exact
+        value: "STATUS_OK\r\n"
+    - receive:
+        type: exact
+        value: GET_VERSION
+      respond:
+        type: exact
+        value: "V1.1.0"

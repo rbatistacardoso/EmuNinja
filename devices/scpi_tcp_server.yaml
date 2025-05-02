@@ -1,0 +1,29 @@
+name: SCPI TCP Server
+enabled: false
+interface:
+  type: tcp
+  host: 0.0.0.0
+  port: 5025
+protocol:
+  type: scpi
+  terminator: "\n"
+  encoding: ascii
+  rules:
+    - receive:
+        type: exact
+        value: "*IDN?"
+      respond:
+        type: exact
+        value: "EmuNinja,SCPI Server,1.0\n"
+    - receive:
+        type: prefix
+        value: "MEAS:VOLT?"
+      respond:
+        type: exact
+        value: "+1.2345E+01\n"
+    - receive:
+        type: regex
+        value: "FREQ\\s+(\\d+)"
+      respond:
+        type: exact
+        value: "OK\n"

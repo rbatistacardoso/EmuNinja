@@ -1,0 +1,43 @@
+name: Modbus TCP Server
+enabled: true
+interface:
+  type: tcp
+  host: 0.0.0.0
+  port: 502
+protocol:
+  type: modbus_tcp
+  unit_id: 1
+  registers:
+    holding_registers:
+      # Address: [Value, Description]
+      0: [1234, "Device ID"]
+      1: [5678, "Status Register"]
+      10: [1122, "Configuration Register"]
+    input_registers:
+      0: [1000, "Temperature"]
+      1: [2000, "Pressure"]
+      2: [3000, "Flow Rate"]
+    coils:
+      0: [true, "System Ready"]
+      1: [false, "Error Status"]
+      8: [true, "Auto Mode"]
+    discrete_inputs:
+      0: [true, "Sensor 1"]
+      1: [false, "Sensor 2"]
+      2: [true, "Sensor 3"]
+  rules:
+    # Custom rules for non-standard Modbus operations
+    - receive:
+        type: exact
+        value: "RESET"
+      respond:
+        type: exact
+        value: "OK"
+      action:
+        type: reset_registers
+    - receive:
+        type: exact
+        value: "GET_INFO"
+      respond:
+        type: exact
+        value: "EmuNinja Modbus Server v1.0"
