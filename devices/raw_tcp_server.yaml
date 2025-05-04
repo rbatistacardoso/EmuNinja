@@ -1,5 +1,5 @@
 name: Raw TCP Server Extra
-enabled: true
+enabled: false
 interface:
   type: tcp
   host: 127.0.0.1
@@ -7,6 +7,7 @@ interface:
 protocol:
   type: raw
   encoding: utf-8
+  terminator: "\r\n"
   rules:
     - receive:
         type: exact

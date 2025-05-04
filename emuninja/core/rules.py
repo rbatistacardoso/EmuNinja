@@ -1,5 +1,14 @@
 import re
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
+from dataclasses import dataclass
+
+
+@dataclass
+class RuleMatch:
+    """Represents a matched rule."""
+
+    response: Any
+    delay: float
 
 
 class RuleEngine:
@@ -34,16 +43,16 @@ class RuleEngine:
                     compiled_rule["_compiled_regex"] = None
             self._compiled_rules.append(compiled_rule)
 
-    def find_response(self, parsed_request: Any) -> Optional[Tuple[Any, float]]:
+    def find_response(self, parsed_request: Any) -> Optional[RuleMatch]:
         """
-        Finds a matching response for the given parsed request.
+        Finds a matching response and delay for the given parsed request.
 
         Args:
             parsed_request: The request data, parsed by the ProtocolHandler.
                            Could be a string, bytes, or protocol-specific object.
 
         Returns:
-            Tuple of (response_value, delay_seconds) if match found, else None.
+            A RuleMatch object containing the response value and delay if found, else None.
         """
         for rule in self._compiled_rules:
             receive_rule = rule.get("receive", {})
@@ -97,7 +106,7 @@ class RuleEngine:
                             match_found = True
 
                 if match_found:
-                    return response_value, delay
+                    return RuleMatch(response=response_value, delay=delay)
 
             except Exception as e:
                 print(f"Error evaluating rule {rule}: {e}")

@@ -1,17 +1,17 @@
 import asyncio
-from typing import Dict, Any, Optional, List
+import glob
 import logging
 import os
-import glob
+from typing import Any, Dict, List, Optional
 
 # Import the actual interfaces and protocols
 from ..interfaces.base import CommunicationInterface
 from ..interfaces.serial_interface import SerialInterface
 from ..interfaces.tcp_interface import TcpServerInterface
 from ..protocols.base import ProtocolHandler
+from ..protocols.modbus_tcp_handler import ModbusTcpProtocolHandler
 from ..protocols.raw_handler import RawProtocolHandler
 from ..protocols.scpi_handler import ScpiProtocolHandler
-from ..protocols.modbus_tcp_handler import ModbusTcpProtocolHandler
 from ..utils.config import load_config_from_yaml
 from .rules import RuleEngine
 
@@ -100,7 +100,9 @@ class EmulatorManager:
         else:
             raise ValueError(f"Unsupported interface type: {interface_type}")
 
-    def _create_protocol(self, config: Dict[str, Any], interface_config: Dict[str, Any]) -> ProtocolHandler:
+    def _create_protocol(
+        self, config: Dict[str, Any], interface_config: Dict[str, Any]
+    ) -> ProtocolHandler:
         """Creates a protocol handler based on config."""
         protocol_type = config.get("type")
         if not protocol_type:
@@ -111,7 +113,7 @@ class EmulatorManager:
         rule_engine = RuleEngine(rules_config, registers_config)
 
         if protocol_type == "raw":
-            return RawProtocolHandler(config, rule_engine, interface_config)
+            return RawProtocolHandler(config, rule_engine)
         elif protocol_type == "scpi":
             return ScpiProtocolHandler(config, rule_engine, interface_config)
         elif protocol_type == "modbus_tcp":
@@ -127,7 +129,9 @@ class EmulatorManager:
         try:
             interface_config = device_config.get("interface", {})
             interface = self._create_interface(interface_config)
-            protocol = self._create_protocol(device_config.get("protocol", {}), interface_config)
+            protocol = self._create_protocol(
+                device_config.get("protocol", {}), interface_config
+            )
             return DeviceInstance(name, device_config, interface, protocol)
         except Exception as e:
             self.logger.error(f"Error creating device {name}: {e}")

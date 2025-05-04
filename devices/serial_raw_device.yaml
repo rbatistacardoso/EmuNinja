@@ -1,8 +1,8 @@
 name: Serial Raw Device
-enabled: false
+enabled: true
 interface:
   type: serial
-  port: COM3
+  port: COM2
   baudrate: 9600
   bytesize: 8
   parity: N
@@ -17,7 +17,7 @@ protocol:
         value: GET_STATUS
       respond:
         type: exact
-        value: "STATUS_OK\r\n"
+        value: STATUS_OK
     - receive:
         type: exact
         value: GET_VERSION

@@ -1,42 +1,48 @@
 import asyncio
 import signal
 import sys
-import os
-import logging
+from pathlib import Path
+
+from loguru import logger
 
 from emuninja.core.emulator import EmulatorManager
 
-# Define the devices directory path relative to the project root
-DEVICES_DIR = "devices"
+# Configure loguru with enhanced formatting and colors
+logger.remove()  # Remove default handler
+logger.add(
+    "emulator.log",
+    format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    level="DEBUG",
+    rotation="1 day",
+    retention="7 days",
+    compression="zip",
+)
+logger.add(
+    sys.stdout,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    level="INFO",
+    colorize=True,
+)
 
 
 async def main():
-    project_root = os.path.dirname(os.path.abspath(__file__))
-    devices_path = os.path.join(project_root, DEVICES_DIR)
-    devices_path = os.path.abspath(devices_path)
+    devices_path = Path(__file__).parent / "devices"
+    logger.info(f"Using devices directory: {devices_path}")
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[logging.FileHandler("emulator.log"), logging.StreamHandler()],
-    )
-    logging.info(f"Attempting to use devices directory: {devices_path}")
-    manager = EmulatorManager(devices_dir=devices_path)
-
-    loop = asyncio.get_running_loop()
+    manager = EmulatorManager(devices_dir=str(devices_path))
     stop_event = asyncio.Event()
 
     def signal_handler():
-        print("\nStop signal received, shutting down...")
+        logger.info("Stop signal received, shutting down...")
         stop_event.set()
 
-    # Register signal handlers for graceful shutdown
+    # Setup signal handlers
     if sys.platform != "win32":
         for sig in (signal.SIGINT, signal.SIGTERM):
             try:
-                loop.add_signal_handler(sig, signal_handler)
+                asyncio.get_running_loop().add_signal_handler(sig, signal_handler)
             except ValueError:
-                print(f"Warning: Could not add signal handler for {sig}")
+                logger.warning(f"Could not add signal handler for {sig}")
     else:
         signal.signal(signal.SIGINT, lambda s, f: signal_handler())
         try:
@@ -47,33 +53,31 @@ async def main():
     try:
         await manager.start_all()
         if manager.get_active_device_count() > 0:
-            print(
-                f"Emulator started using devices from '{devices_path}'. Press Ctrl+C to stop."
+            logger.info(
+                f"Emulator started with {manager.get_active_device_count()} devices. Press Ctrl+C to stop."
             )
             await stop_event.wait()
         else:
-            print("No devices were configured or started successfully. Exiting.")
-
+            logger.warning("No active devices found. Exiting.")
     except FileNotFoundError:
-        print(f"Error: Devices directory '{devices_path}' not found.")
-        return
+        logger.error(f"Devices directory not found: {devices_path}")
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        logger.exception(f"Unexpected error: {e}")
     finally:
         if sys.platform != "win32":
             for sig in (signal.SIGINT, signal.SIGTERM):
                 try:
-                    loop.remove_signal_handler(sig)
+                    asyncio.get_running_loop().remove_signal_handler(sig)
                 except ValueError:
                     pass
 
-        print("Shutting down emulator manager...")
+        logger.info("Shutting down emulator...")
         await manager.stop_all()
-        print("Emulator finished.")
+        logger.info("Emulator stopped.")
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\nKeyboardInterrupt caught directly in __main__, forcing exit.")
+        logger.info("Keyboard interrupt received, exiting...")

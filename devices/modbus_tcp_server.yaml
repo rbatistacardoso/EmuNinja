@@ -1,5 +1,5 @@
 name: Modbus TCP Server
-enabled: true
+enabled: false
 interface:
   type: tcp
   host: 0.0.0.0
