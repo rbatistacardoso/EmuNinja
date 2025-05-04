@@ -1,16 +1,15 @@
-# EmuNinja Class Diagram (Initial Skeleton)
+# EmuNinja Class Diagram
 
 ```mermaid
 classDiagram
     direction LR
 
     class EmulatorManager {
-        +str config_path
-        +Dict config
+        +str devices_dir
         +Dict<DeviceInstance> devices
-        +load_config()
         +start_all()*
         +stop_all()*
+        +get_active_device_count() int
         -_create_device_instance(device_config: Dict): DeviceInstance
     }
 
@@ -41,15 +40,18 @@ classDiagram
     }
 
     class SerialInterface {
-        +str port
-        +int baudrate
-        -StreamReader _reader
-        -StreamWriter _writer
-        -Task _listen_task
+        +str port_name
+        -bytes _terminator
+        -Dict _serial_params
+        -Optional[Serial] _serial_port
+        -Optional[Task] _listen_task
+        -Event _stop_event
         +start(data_handler: Callable)*
         +stop()*
         +send(data: bytes)*
         -_listen(data_handler: Callable)*
+        -_open_port()* bool
+        -_close_port()*
     }
 
     class TcpServerInterface {
@@ -68,35 +70,30 @@ classDiagram
         <<Abstract>>
         +Dict config
         +RuleEngine rule_engine
-        +handle_data(received_data: bytes): Optional<bytes>*
+        +handle_data(received_data: bytes): Optional[bytes]*
     }
 
     class RawProtocolHandler {
-        +handle_data(received_data: bytes): Optional<bytes>
+        +handle_data(received_data: bytes): Optional[bytes]
     }
 
     class ScpiProtocolHandler {
         +bytes terminator
         +str encoding
         -bytearray _buffer
-        +handle_data(received_data: bytes): Optional<bytes>
+        +handle_data(received_data: bytes): Optional[bytes]
     }
 
     class ModbusRtuProtocolHandler {
         +int unit_id
         # ModbusServerContext context
-        +handle_data(received_data: bytes): Optional<bytes>
+        +handle_data(received_data: bytes): Optional[bytes]
     }
 
     class ModbusTcpProtocolHandler {
         +int unit_id
         # ModbusServerContext context
-        +handle_data(received_data: bytes): Optional<bytes>
-    }
-
-    class ConfigUtils {
-        <<Utility>>
-        +load_config_from_yaml(file_path): Dict*
+        +handle_data(received_data: bytes): Optional[bytes]
     }
 
     EmulatorManager o--> "*" DeviceInstance : manages
@@ -111,21 +108,12 @@ classDiagram
     ProtocolHandler <|-- ScpiProtocolHandler
     ProtocolHandler <|-- ModbusRtuProtocolHandler
     ProtocolHandler <|-- ModbusTcpProtocolHandler
-
-    %% Relationships to Base Types (Implied)
-    %% SerialInterface ..> asyncio.StreamReader
-    %% SerialInterface ..> asyncio.StreamWriter
-    %% TcpServerInterface ..> asyncio.AbstractServer
-    %% TcpServerInterface ..> asyncio.StreamWriter
-
-    %% Utility Usage (Conceptual)
-    %% EmulatorManager ..> ConfigUtils : uses
 ```
 
 **Notes:**
 
-*   `*` denotes an `async` method.
-*   `Optional~T~` indicates the method might return `T` or `None`.
-*   `Dict~K,V~` or `List~T~` show generic types (simplified here).
-*   Relationships show composition (`o-->`) and inheritance (`<|--`).
-*   Some internal details (like specific asyncio types) and utility usage are simplified or implied.
+- `*` denotes an `async` method.
+- `Optional~T~` indicates the method might return `T` or `None`.
+- `Dict~K,V~` or `List~T~` show generic types.
+- Relationships show composition (`o-->`) and inheritance (`<|--`).
+- Internal implementation details are simplified for clarity.
